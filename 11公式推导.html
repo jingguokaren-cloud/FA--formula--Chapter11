@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bad Debt Expense Logic</title>
+    <style>
+        :root {
+            --primary: #2563eb;       /* 交互蓝 */
+            --box-border: #94a3b8;    /* 虚线颜色 */
+            --bg-color: #f8fafc;      /* 页面背景 */
+            --card-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            background-color: var(--bg-color);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+            min-height: 100vh;
+            padding-bottom: 120px;
+        }
+
+        h1 { margin-bottom: 40px; color: #1e293b; text-align: center; }
+
+        /* --- 卡片通用样式 --- */
+        .card {
+            background: white;
+            border: 1px solid #cbd5e1;
+            padding: 10px 15px;
+            border-radius: 8px;
+            color: #334155;
+            box-shadow: var(--card-shadow);
+            transition: all 0.2s;
+            position: relative;
+            z-index: 2;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-width: 100px;
+            text-align: center;
+        }
+
+        /* 英文主标题 */
+        .en-text {
+            font-weight: 600;
+            font-size: 0.95rem;
+            color: #1e293b;
+            line-height: 1.2;
+        }
+
+        /* 中文副标题 */
+        .cn-text {
+            font-size: 0.75rem;
+            color: #64748b;
+            margin-top: 4px;
+            font-weight: normal;
+        }
+
+        /* 可点击卡片样式 */
+        .card.interactive {
+            cursor: pointer;
+            border: 1px solid var(--primary);
+            background: #eff6ff; /* 极淡的蓝背景 */
+        }
+        
+        .card.interactive .en-text { color: var(--primary); }
+        .card.interactive .cn-text { color: #60a5fa; }
+
+        .card.interactive:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(37, 99, 235, 0.15);
+        }
+
+        .card.active {
+            background: var(--primary);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
+            border-color: var(--primary);
+        }
+        
+        .card.active .en-text, .card.active .cn-text { color: white; }
+
+        /* 符号 */
+        .symbol {
+            font-size: 1.2rem;
+            color: #94a3b8;
+            margin: 0 8px;
+            font-weight: bold;
+        }
+
+        /* --- 布局结构 --- */
+        .row {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            position: relative;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+
+        /* 虚线分组容器 */
+        .dashed-group {
+            display: none;
+            flex-direction: column;
+            align-items: center;
+            width: 100%;
+            position: relative;
+            animation: slideDown 0.4s ease-out forwards;
+        }
+
+        @keyframes slideDown {
+            from { opacity: 0; transform: translateY(-10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* 虚线框本体 */
+        .dashed-box-content {
+            border: 2px dashed var(--box-border);
+            border-radius: 12px;
+            padding: 25px 30px;
+            background-color: rgba(255, 255, 255, 0.6);
+            position: relative;
+            margin-top: 25px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .dashed-box-label {
+            position: absolute;
+            top: -12px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: var(--bg-color);
+            padding: 0 10px;
+            font-size: 0.8rem;
+            color: var(--box-border);
+            font-weight: bold;
+            letter-spacing: 1px;
+        }
+
+        /* 垂直连接线 */
+        .vertical-connector {
+            position: absolute;
+            top: -25px;
+            width: 0;
+            height: 27px;
+            border-left: 2px dashed var(--primary);
+            z-index: 1;
+            transition: transform 0.3s ease;
+        }
+
+        /* 手势提示 */
+        .click-hint {
+            font-size: 0.7em; 
+            margin-top: 2px;
+            opacity: 0.8;
+        }
+
+        /* 数学公式盒子 */
+        .math-box {
+            background: #fffbeb;
+            border: 1px solid #f59e0b;
+            color: #b45309;
+            font-family: monospace;
+            padding: 15px 25px;
+            border-radius: 6px;
+            font-weight: bold;
+            text-align: center;
+            line-height: 1.6;
+        }
+
+        /* 重置按钮区域 */
+        .reset-section {
+            margin-top: 80px;
+            text-align: center;
+        }
+
+        .reset-btn {
+            background: transparent;
+            border: 2px solid #cbd5e1;
+            color: #64748b;
+            padding: 10px 24px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: all 0.2s;
+            font-weight: 500;
+        }
+
+        .reset-btn:hover {
+            border-color: var(--primary);
+            color: var(--primary);
+            background: #eff6ff;
+        }
+
+
+    </style>
+</head>
+<body>
+
+    <h1>Bad Debt Expense Formula<br><span style="font-size:0.6em; color:#64748b; font-weight:normal;">坏账费用公式推导</span></h1>
+
+    <!-- Level 1 -->
+    <div class="row" id="level-1">
+        <div class="card" style="border-left: 4px solid var(--primary);">
+            <div class="en-text">Bad Debt Exp.</div>
+            <div class="cn-text">坏账费用</div>
+        </div>
+        <div class="symbol">=</div>
+        
+        <!-- 按钮 1 -->
+        <div class="card interactive" id="btn-allowance" onclick="expandLevel(1, this)">
+            <div class="en-text">Change in Allowance</div>
+            <div class="cn-text">当期备抵变动</div>
+            <div class="click-hint">▼</div>
+        </div>
+        
+        <div class="symbol" style="color:#10b981">+</div>
+        <div class="card">
+            <div class="en-text">Write-offs</div>
+            <div class="cn-text">当期核销</div>
+        </div>
+        <div class="symbol" style="color:#ef4444">-</div>
+        <div class="card">
+            <div class="en-text">Recoveries</div>
+            <div class="cn-text">当期收回</div>
+        </div>
+    </div>
+
+    <!-- Level 2 Group -->
+    <div id="group-allowance" class="dashed-group">
+        <div class="vertical-connector" id="line-1"></div>
+        <div class="dashed-box-content">
+            <div class="dashed-box-label">BREAKDOWN / 构成</div>
+            <div class="row">
+                <!-- 按钮 2 -->
+                <div class="card interactive" id="btn-ending" onclick="expandLevel(2, this)">
+                    <div class="en-text">Ending Balance</div>
+                    <div class="cn-text">期末备抵余额</div>
+                    <div class="click-hint">▼</div>
+                </div>
+                <div class="symbol">-</div>
+                <div class="card">
+                    <div class="en-text">Opening Balance</div>
+                    <div class="cn-text">期初备抵余额</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Level 3 Group -->
+    <div id="group-ending" class="dashed-group">
+        <div class="vertical-connector" id="line-2"></div>
+        <div class="dashed-box-content">
+            <div class="dashed-box-label">COMPONENTS / 来源</div>
+            <div class="row">
+                <div class="card">
+                    <div class="en-text">Specific Allow.</div>
+                    <div class="cn-text">特定备抵</div>
+                </div>
+                <div class="symbol">+</div>
+                <!-- 按钮 3 -->
+                <div class="card interactive" id="btn-general" onclick="expandLevel(3, this)">
+                    <div class="en-text">General Allow.</div>
+                    <div class="cn-text">一般备抵</div>
+                    <div class="click-hint">▼</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Level 4 Group -->
+    <div id="group-formula" class="dashed-group">
+        <div class="vertical-connector" id="line-3"></div>
+        <div class="dashed-box-content" style="border-color: #f59e0b; background-color: #fffbeb;">
+            <div class="dashed-box-label" style="color: #d97706; background-color: #f8fafc;">CALCULATION / 计算公式</div>
+            <div class="math-box">
+                ( <span style="color:#1e293b">AR Balance</span> - <span style="color:#1e293b">Specific</span> - <span style="color:#1e293b">Write-offs</span> ) × %
+                <br>
+                <span style="font-size:0.8em; color:#92400e; font-weight:normal;">( 应收账款余额 - 特定备抵 - 核销 ) × 比例</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- 重置按钮 -->
+    <div class="reset-section">
+        <button class="reset-btn" onclick="location.reload()">
+            🔄 Reset / 重置
+        </button>
+    </div>
+
+    <script>
+        function expandLevel(level, btnElement) {
+            // 激活样式
+            btnElement.classList.add('active');
+            const hint = btnElement.querySelector('.click-hint');
+            if(hint) hint.style.display = 'none';
+
+            let targetGroup, connectorLine;
+
+            // 映射关系
+            if (level === 1) {
+                targetGroup = document.getElementById('group-allowance');
+                connectorLine = document.getElementById('line-1');
+            } else if (level === 2) {
+                targetGroup = document.getElementById('group-ending');
+                connectorLine = document.getElementById('line-2');
+            } else if (level === 3) {
+                targetGroup = document.getElementById('group-formula');
+                connectorLine = document.getElementById('line-3');
+            }
+
+            if (targetGroup) {
+                targetGroup.style.display = 'flex';
+                
+                // 核心算法：计算连线偏移量
+                // 让 connector 的 X 轴位置 = 按钮中心 - 屏幕中心
+                const btnRect = btnElement.getBoundingClientRect();
+                const offset = (btnRect.left + btnRect.width/2) - (window.innerWidth / 2);
+                
+                if(connectorLine) {
+                    connectorLine.style.transform = `translateX(${offset}px)`;
+                }
+
+                // 自动滚动，提升体验
+                setTimeout(() => {
+                    targetGroup.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                }, 100);
+            }
+        }
+    </script>
+</body>
+</html>
